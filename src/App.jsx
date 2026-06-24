@@ -10,7 +10,7 @@ function App() {
   useEffect(() => {
     fetch('https://api.openf1.org/v1/meetings?year=2026')
       .then(res => res.json())
-      .then(data => setRaces(data))
+      .then(data => setRaces(data.filter(m => !m.meeting_name.toLowerCase().includes('testing'))))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
