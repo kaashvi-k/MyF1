@@ -26,3 +26,5 @@ export const DRIVERS_2026 = [
 export const driverByNumber = Object.fromEntries(
   DRIVERS_2026.map(d => [d.number, d])
 );
+
+export const TEAMS_2026 = [...new Set(DRIVERS_2026.map(d => d.team))];
