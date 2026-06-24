@@ -1,122 +1,92 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useState } from 'react';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [races, setRaces] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [results, setResults] = useState({});       // { meetingKey: [resultRows] }
+  const [loadingResults, setLoadingResults] = useState(null); // which meeting is currently fetching
+
+  useEffect(() => {
+    fetch('https://api.openf1.org/v1/meetings?year=2026')
+      .then(res => res.json())
+      .then(data => setRaces(data))
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function viewResults(meetingKey) {
+      setLoadingResults(meetingKey);
+      try {
+        const sessionsRes = await fetch(
+          `https://api.openf1.org/v1/sessions?meeting_key=${meetingKey}&session_name=Race`
+        );
+        const sessions = sessionsRes.ok ? await sessionsRes.json() : [];
+
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+          setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
+          return;
+        }
+
+        const sessionKey = sessions[0].session_key;
+        const resultsRes = await fetch(
+          `https://api.openf1.org/v1/session_result?session_key=${sessionKey}`
+        );
+        const raceResults = resultsRes.ok ? await resultsRes.json() : [];
+
+        if (!Array.isArray(raceResults) || raceResults.length === 0) {
+          setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
+          return;
+        }
+
+        raceResults.sort((a, b) => a.position - b.position);
+        setResults(prev => ({ ...prev, [meetingKey]: raceResults }));
+      } catch (err) {
+        console.error('Failed to fetch results:', err);
+        setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
+      } finally {
+        setLoadingResults(null);
+      }
+    }
+  const isPast = (dateStr) => new Date(dateStr) < new Date();
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div>
+      <h1>2026 F1 Calendar</h1>
+      {loading && <p>Loading races...</p>}
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+      <ul>
+        {races.map(meeting => (
+          <li key={meeting.meeting_key} style={{ marginBottom: '1rem' }}>
+            {meeting.meeting_name} — {meeting.location}, {meeting.country_name} — {meeting.date_start?.slice(0, 10)}
 
-      <div className="ticks"></div>
+            {isPast(meeting.date_start) && (
+              <>
+                {' '}
+                <button onClick={() => viewResults(meeting.meeting_key)}>
+                  {loadingResults === meeting.meeting_key ? 'Loading...' : 'View Results'}
+                </button>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+                {results[meeting.meeting_key] && (
+                    results[meeting.meeting_key] === 'unavailable' ? (
+                      <p style={{ color: 'gray' }}>Results not available for this race.</p>
+                    ) : (
+                      <ol>
+                        {results[meeting.meeting_key].map(r => (
+                          <li key={r.driver_number}>
+                            Driver #{r.driver_number} — {r.dnf ? 'DNF' : `${r.points ?? 0} pts`}
+                          </li>
+                        ))}
+                      </ol>
+                    )
+                  )}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
-export default App
+export default App;
