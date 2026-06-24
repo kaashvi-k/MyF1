@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { driverByNumber } from './drivers';
 
 function App() {
   const [races, setRaces] = useState([]);
@@ -39,7 +40,11 @@ function App() {
           return;
         }
 
-        raceResults.sort((a, b) => a.position - b.position);
+        raceResults.sort((a, b) => {
+          if (a.position == null) return 1;   // no position (DNF) → push to the end
+          if (b.position == null) return -1;
+          return a.position - b.position;
+        });
         setResults(prev => ({ ...prev, [meetingKey]: raceResults }));
       } catch (err) {
         console.error('Failed to fetch results:', err);
@@ -72,11 +77,16 @@ function App() {
                       <p style={{ color: 'gray' }}>Results not available for this race.</p>
                     ) : (
                       <ol>
-                        {results[meeting.meeting_key].map(r => (
-                          <li key={r.driver_number}>
-                            Driver #{r.driver_number} — {r.dnf ? 'DNF' : `${r.points ?? 0} pts`}
-                          </li>
-                        ))}
+                        {results[meeting.meeting_key].map(r => {
+                          const driver = driverByNumber[r.driver_number];
+                          return (
+                            <li key={r.driver_number}>
+                              P{r.position ?? '–'} — {driver ? `${driver.name} (${driver.team})` : `Driver #${r.driver_number}`}
+                              {' — '}
+                              {r.dnf ? 'DNF' : `${r.points ?? 0} pts`}
+                            </li>
+                          );
+                        })}
                       </ol>
                     )
                   )}
