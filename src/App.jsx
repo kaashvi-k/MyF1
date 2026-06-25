@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { driverByNumber, DRIVERS_2026, TEAMS_2026 } from './drivers';
-import { auth, googleProvider, db } from './firebase';
+import { auth, googleProvider, db, messaging } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getToken } from 'firebase/messaging';
+
+const VAPID_KEY = 'BFnkYtDMzOQFz05eMPEVVbiTlMBOaiFkfMNKVY4CKPAqAyQHoCxT-IdPjN8fA2QwhnKV00HOCWJ81wHNVVj6xxQ';
 
 function App() {
   const [races, setRaces] = useState([]);
@@ -77,6 +80,28 @@ function App() {
       console.error('Failed to update follow:', err);
     }
   }
+
+  // Moved inside the component — this is the fix. It needs access to `user`,
+  // which only exists as state inside App().
+async function enableNotifications() {
+  if (!user) return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert('Notification permission denied.');
+      return;
+    }
+    await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const registration = await navigator.serviceWorker.ready; // ← new line: waits for the worker to be fully active
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+    if (token) {
+      await setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
+      alert('Notifications enabled!');
+    }
+  } catch (err) {
+    console.error('Failed to enable notifications:', err);
+  }
+}
 
   useEffect(() => {
     fetch('https://api.openf1.org/v1/meetings?year=2026')
@@ -180,6 +205,8 @@ function App() {
               </li>
             ))}
           </ul>
+
+          <button onClick={enableNotifications}>Enable Push Notifications</button>
         </div>
       ) : (
         <p>Sign in to follow drivers and teams.</p>
