@@ -15,6 +15,22 @@ const firebaseConfig = {
   appId: "1:495745229566:web:c2b097ebcafee0a8e3fbaf"
 };
 
+
+firebase.initializeApp(firebaseConfig);
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  self.registration.showNotification(
+    payload.notification.title,
+    {
+      body: payload.notification.body,
+      icon: "/favicon.ico",
+    }
+  );
+});
+
+
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
