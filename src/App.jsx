@@ -146,11 +146,16 @@ function App() {
   // anything else (Retired, Accident, Disqualified...) is Jolpica's own
   // plain-English explanation, so we just show it directly.
   function formatStatus(r) {
-    if (r.status === 'Finished' || r.status.startsWith('+')) {
-      return `${r.points} pts`;
+      const points = parseFloat(r.points);
+      if (points > 0) return `${r.points} pts`;
+
+      // Genuinely classified with zero points (finished outside scoring positions)
+      const classifiedPattern = /^(Finished|\+\d+\s?Laps?|Lapped)$/i;
+      if (classifiedPattern.test(r.status)) return `${r.points} pts`;
+
+      // Anything else (Retired, Accident, Disqualified, etc.) — show the real reason
+      return r.status;
     }
-    return r.status;
-  }
 
   async function getHighlights(race) {
     const raceResults = results[race.round];
