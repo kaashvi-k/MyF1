@@ -13,17 +13,18 @@ export default async function handler(req, res) {
     .map(r => `P${r.position ?? '–'}: ${r.driverName} (${r.team}) — ${r.status}`)
     .join('\n');
 
-  const prompt = `You are summarizing the highlights of a Formula 1 race for fans who missed it.
+    const prompt = `You are summarizing the highlights of a Formula 1 race for fans who missed it.
 
     Race: ${raceName} on ${raceDate}
     Results:
     ${resultsSummary}
 
-    You may draw on general, well-established background about each driver's career — past championships, reputation, driving style, rivalries — to add color and context.
+    You may describe drivers using general reputation, personality, or driving style (e.g. "known for aggressive overtakes," "a calm, consistent racer") since this kind of color doesn't go out of date.
 
-    However, you must NOT make any claims about this CURRENT season's standings, point totals, or championship status (who is leading the championship, who currently holds the title, anyone's points total this year) unless that exact information appears in the results above. Your knowledge of the current season may be outdated, so rely only on the race data provided for anything specific to this season.
+    You must NOT state any specific factual or statistical claim about a driver's career or status unless it is explicitly given in the results above. This includes — but is not limited to — claims like: this is their first win ("maiden victory"), they are a rookie or in their debut season, their championship standing, their points total, how many races/wins/podiums they have had, or any other numbered or "first/youngest/only" type claim. Your knowledge of these specific facts may be outdated or wrong. If you are not certain a factual claim is supported by the results given above, do not make it.
 
-    Write a short, engaging 3-4 sentence recap of THIS race only: who won, notable battles, surprises, or DNFs. Use driver background for color where it fits naturally, but ground the actual storyline entirely in this race's results above.`;
+    Write a short, engaging 3-4 sentence recap of THIS race only: who won, notable battles, surprises, or DNFs. Use driver personality/style for color where it fits, but do not invent or assume any specific career facts, firsts, or statistics.`;
+
 
   try {
     const response = await fetch(
