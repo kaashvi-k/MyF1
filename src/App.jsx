@@ -149,11 +149,15 @@ function App() {
       const points = parseFloat(r.points);
       if (points > 0) return `${r.points} pts`;
 
-      // Genuinely classified with zero points (finished outside scoring positions)
       const classifiedPattern = /^(Finished|\+\d+\s?Laps?|Lapped)$/i;
       if (classifiedPattern.test(r.status)) return `${r.points} pts`;
 
-      // Anything else (Retired, Accident, Disqualified, etc.) — show the real reason
+      // Explicit labels for DSQ and DNS specifically
+      if (/disqualified/i.test(r.status)) return 'DSQ';
+      if (/did not start|withdrew/i.test(r.status)) return 'DNS';
+
+      // Everything else (Retired, Accident, Engine, Collision, Spun off, etc.)
+      // — Jolpica's specific reason, shown as-is, same as before
       return r.status;
     }
 
