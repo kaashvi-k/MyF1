@@ -3,7 +3,7 @@ import { driverByNumber, DRIVERS_2026, TEAMS_2026 } from './drivers';
 import { auth, googleProvider, db, messaging } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { getToken } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 
 const VAPID_KEY = 'BFnkYtDMzOQFz05eMPEVVbiTlMBOaiFkfMNKVY4CKPAqAyQHoCxT-IdPjN8fA2QwhnKV00H0CWJ81wHNVVj6xxQ';
 
@@ -41,6 +41,18 @@ function App() {
       })
       .catch(err => console.error('Failed to load follows:', err));
   }, [user]);
+
+  // Handle push notifications that arrive while this tab is open and focused
+  // (FCM's service worker handler only fires when the tab is backgrounded/closed)
+  useEffect(() => {
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('Foreground message received:', payload);
+      new Notification(payload.notification.title, {
+        body: payload.notification.body,
+      });
+    });
+    return unsubscribe;
+  }, []);
 
   function handleSignIn() {
     signInWithPopup(auth, googleProvider).catch(err => console.error('Sign-in failed:', err));
