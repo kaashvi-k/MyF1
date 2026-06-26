@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     Results:
     ${resultsSummary}
 
-    You may describe drivers using general reputation, personality, or driving style (e.g. "known for aggressive overtakes," "a calm, consistent racer") since this kind of color doesn't go out of date.
+    You may describe drivers using general reputation, personality, or driving style (e.g. "known for aggressive overtakes," "a calm, consistent racer") since this kind of color doesn't go out of date but dont go overboard with it by giving an adjective for every driver.
 
     You must NOT state any specific factual or statistical claim about a driver's career or status unless it is explicitly given in the results above. This includes — but is not limited to — claims like: this is their first win ("maiden victory"), they are a rookie or in their debut season, their championship standing, their points total, how many races/wins/podiums they have had, or any other numbered or "first/youngest/only" type claim. Your knowledge of these specific facts may be outdated or wrong. If you are not certain a factual claim is supported by the results given above, do not make it.
 
