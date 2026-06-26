@@ -5,7 +5,6 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getToken } from 'firebase/messaging';
 
-const [highlights, setHighlights] = useState({});
 const VAPID_KEY = 'BFnkYtDMzOQFz05eMPEVVbiTlMBOaiFkfMNKVY4CKPAqAyQHoCxT-IdPjN8fA2QwhnKV00H0CWJ81wHNVVj6xxQ';
 
 function App() {
@@ -17,6 +16,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [followedDrivers, setFollowedDrivers] = useState([]);
   const [followedTeams, setFollowedTeams] = useState([]);
+  const [highlights, setHighlights] = useState({});
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -82,27 +82,25 @@ function App() {
     }
   }
 
-  // Moved inside the component — this is the fix. It needs access to `user`,
-  // which only exists as state inside App().
-async function enableNotifications() {
-  if (!user) return;
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      alert('Notification permission denied.');
-      return;
+  async function enableNotifications() {
+    if (!user) return;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Notification permission denied.');
+        return;
+      }
+      await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      const registration = await navigator.serviceWorker.ready;
+      const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+      if (token) {
+        await setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
+        alert('Notifications enabled!');
+      }
+    } catch (err) {
+      console.error('Failed to enable notifications:', err);
     }
-    await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-    const registration = await navigator.serviceWorker.ready; // ← new line: waits for the worker to be fully active
-    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
-    if (token) {
-      await setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
-      alert('Notifications enabled!');
-    }
-  } catch (err) {
-    console.error('Failed to enable notifications:', err);
   }
-}
 
   useEffect(() => {
     fetch('https://api.openf1.org/v1/meetings?year=2026')
@@ -125,43 +123,6 @@ async function enableNotifications() {
     return 4;
   }
 
-  async function getHighlights(meeting) {
-  const raceResults = results[meeting.meeting_key];
-  if (!Array.isArray(raceResults)) return;
-
-  setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'loading' }));
-
-  const formattedResults = raceResults.map(r => {
-    const driver = driverByNumber[r.driver_number];
-    return {
-      position: r.position,
-      driverName: driver ? driver.name : `Driver #${r.driver_number}`,
-      team: driver ? driver.team : 'Unknown',
-      status: r.position ? `${r.points ?? 0} pts`
-        : r.dnf ? 'DNF' : r.dsq ? 'DSQ' : r.dns ? 'DNS' : 'NC',
-    };
-  });
-
-  try {
-    const res = await fetch('/api/race-highlights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        raceName: meeting.meeting_name,
-        raceDate: meeting.date_start?.slice(0, 10),
-        results: formattedResults,
-      }),
-    });
-    const data = await res.json();
-    setHighlights(prev => ({
-      ...prev,
-      [meeting.meeting_key]: data.summary || 'Failed to load highlights.',
-    }));
-  } catch (err) {
-    console.error('Failed to get highlights:', err);
-    setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'Failed to load highlights.' }));
-  }
-}
   async function viewResults(meetingKey) {
     setLoadingResults(meetingKey);
     try {
@@ -198,6 +159,44 @@ async function enableNotifications() {
       setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
     } finally {
       setLoadingResults(null);
+    }
+  }
+
+  async function getHighlights(meeting) {
+    const raceResults = results[meeting.meeting_key];
+    if (!Array.isArray(raceResults)) return;
+
+    setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'loading' }));
+
+    const formattedResults = raceResults.map(r => {
+      const driver = driverByNumber[r.driver_number];
+      return {
+        position: r.position,
+        driverName: driver ? driver.name : `Driver #${r.driver_number}`,
+        team: driver ? driver.team : 'Unknown',
+        status: r.position ? `${r.points ?? 0} pts`
+          : r.dnf ? 'DNF' : r.dsq ? 'DSQ' : r.dns ? 'DNS' : 'NC',
+      };
+    });
+
+    try {
+      const res = await fetch('/api/race-highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raceName: meeting.meeting_name,
+          raceDate: meeting.date_start?.slice(0, 10),
+          results: formattedResults,
+        }),
+      });
+      const data = await res.json();
+      setHighlights(prev => ({
+        ...prev,
+        [meeting.meeting_key]: data.summary || 'Failed to load highlights.',
+      }));
+    } catch (err) {
+      console.error('Failed to get highlights:', err);
+      setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'Failed to load highlights.' }));
     }
   }
 
@@ -272,7 +271,21 @@ async function enableNotifications() {
                 {Array.isArray(results[meeting.meeting_key]) && (
                   <>
                     <ol>
-                      {/* ...existing results mapping, unchanged... */}
+                      {results[meeting.meeting_key].map(r => {
+                        const driver = driverByNumber[r.driver_number];
+                        const label = driver ? `${driver.name} (${driver.team})` : `Driver #${r.driver_number}`;
+                        const status = r.position ? `${r.points ?? 0} pts`
+                          : r.dnf ? 'DNF'
+                          : r.dsq ? 'DSQ'
+                          : r.dns ? 'DNS'
+                          : 'NC';
+
+                        return (
+                          <li key={r.driver_number}>
+                            P{r.position ?? '–'} — {label} — {status}
+                          </li>
+                        );
+                      })}
                     </ol>
                     <button onClick={() => getHighlights(meeting)}>
                       {highlights[meeting.meeting_key] === 'loading' ? 'Generating...' : 'Get AI Highlights'}
@@ -282,8 +295,6 @@ async function enableNotifications() {
                     )}
                   </>
                 )}
-
-
               </>
             )}
           </li>
