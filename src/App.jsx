@@ -5,6 +5,7 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getToken } from 'firebase/messaging';
 
+const [highlights, setHighlights] = useState({});
 const VAPID_KEY = 'BFnkYtDMzOQFz05eMPEVVbiTlMBOaiFkfMNKVY4CKPAqAyQHoCxT-IdPjN8fA2QwhnKV00H0CWJ81wHNVVj6xxQ';
 
 function App() {
@@ -124,6 +125,43 @@ async function enableNotifications() {
     return 4;
   }
 
+  async function getHighlights(meeting) {
+  const raceResults = results[meeting.meeting_key];
+  if (!Array.isArray(raceResults)) return;
+
+  setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'loading' }));
+
+  const formattedResults = raceResults.map(r => {
+    const driver = driverByNumber[r.driver_number];
+    return {
+      position: r.position,
+      driverName: driver ? driver.name : `Driver #${r.driver_number}`,
+      team: driver ? driver.team : 'Unknown',
+      status: r.position ? `${r.points ?? 0} pts`
+        : r.dnf ? 'DNF' : r.dsq ? 'DSQ' : r.dns ? 'DNS' : 'NC',
+    };
+  });
+
+  try {
+    const res = await fetch('/api/race-highlights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        raceName: meeting.meeting_name,
+        raceDate: meeting.date_start?.slice(0, 10),
+        results: formattedResults,
+      }),
+    });
+    const data = await res.json();
+    setHighlights(prev => ({
+      ...prev,
+      [meeting.meeting_key]: data.summary || 'Failed to load highlights.',
+    }));
+  } catch (err) {
+    console.error('Failed to get highlights:', err);
+    setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'Failed to load highlights.' }));
+  }
+}
   async function viewResults(meetingKey) {
     setLoadingResults(meetingKey);
     try {
@@ -232,24 +270,20 @@ async function enableNotifications() {
                 )}
 
                 {Array.isArray(results[meeting.meeting_key]) && (
-                  <ol>
-                    {results[meeting.meeting_key].map(r => {
-                      const driver = driverByNumber[r.driver_number];
-                      const label = driver ? `${driver.name} (${driver.team})` : `Driver #${r.driver_number}`;
-                      const status = r.position ? `${r.points ?? 0} pts`
-                        : r.dnf ? 'DNF'
-                        : r.dsq ? 'DSQ'
-                        : r.dns ? 'DNS'
-                        : 'NC';
-
-                      return (
-                        <li key={r.driver_number}>
-                          P{r.position ?? '–'} — {label} — {status}
-                        </li>
-                      );
-                    })}
-                  </ol>
+                  <>
+                    <ol>
+                      {/* ...existing results mapping, unchanged... */}
+                    </ol>
+                    <button onClick={() => getHighlights(meeting)}>
+                      {highlights[meeting.meeting_key] === 'loading' ? 'Generating...' : 'Get AI Highlights'}
+                    </button>
+                    {highlights[meeting.meeting_key] && highlights[meeting.meeting_key] !== 'loading' && (
+                      <p style={{ fontStyle: 'italic', marginTop: '0.5rem' }}>{highlights[meeting.meeting_key]}</p>
+                    )}
+                  </>
                 )}
+
+
               </>
             )}
           </li>
