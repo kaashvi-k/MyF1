@@ -25,7 +25,6 @@ function App() {
     return unsubscribe;
   }, []);
 
-  // Load this user's follows whenever they sign in (or clear them on sign-out)
   useEffect(() => {
     if (!user) {
       setFollowedDrivers([]);
@@ -42,8 +41,6 @@ function App() {
       .catch(err => console.error('Failed to load follows:', err));
   }, [user]);
 
-  // Handle push notifications that arrive while this tab is open and focused
-  // (FCM's service worker handler only fires when the tab is backgrounded/closed)
   useEffect(() => {
     const unsubscribe = onMessage(messaging, (payload) => {
       console.log('Foreground message received:', payload);
@@ -114,18 +111,19 @@ function App() {
     }
   }
 
+  // NEW: calendar now comes from our own backend (which sources from Jolpica,
+  // with Firestore caching as a fallback) instead of fetching OpenF1 directly.
   useEffect(() => {
-    fetch('https://api.openf1.org/v1/meetings?year=2026')
+    fetch('/api/calendar')
       .then(res => res.json())
-      .then(data => {
-        const filtered = data.filter(
-          m => !m.meeting_name.toLowerCase().includes('testing')
-        );
-        setRaces(filtered);
-      })
-      .catch(err => setError(err.message))
+      .then(data => setRaces(data.races || []))
+      .catch(() => setError('Calendar temporarily unavailable.'))
       .finally(() => setLoading(false));
   }, []);
+
+  // --- Below: results/highlights logic, unchanged for now, not yet wired
+  // into the UI since it still expects OpenF1's data shape (meeting_key,
+  // driver_number). We're updating this in the next step. ---
 
   function statusRank(r) {
     if (r.position) return 0;
@@ -265,50 +263,12 @@ function App() {
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
 
       <ul>
-        {races.map(meeting => (
-          <li key={meeting.meeting_key} style={{ marginBottom: '1rem' }}>
-            {meeting.meeting_name} — {meeting.location}, {meeting.country_name} — {meeting.date_start?.slice(0, 10)}
-
-            {isPast(meeting.date_start) && (
-              <>
-                {' '}
-                <button onClick={() => viewResults(meeting.meeting_key)}>
-                  {loadingResults === meeting.meeting_key ? 'Loading...' : 'View Results'}
-                </button>
-
-                {results[meeting.meeting_key] === 'unavailable' && (
-                  <p style={{ color: 'gray' }}>Results not available for this race.</p>
-                )}
-
-                {Array.isArray(results[meeting.meeting_key]) && (
-                  <>
-                    <ol>
-                      {results[meeting.meeting_key].map(r => {
-                        const driver = driverByNumber[r.driver_number];
-                        const label = driver ? `${driver.name} (${driver.team})` : `Driver #${r.driver_number}`;
-                        const status = r.position ? `${r.points ?? 0} pts`
-                          : r.dnf ? 'DNF'
-                          : r.dsq ? 'DSQ'
-                          : r.dns ? 'DNS'
-                          : 'NC';
-
-                        return (
-                          <li key={r.driver_number}>
-                            P{r.position ?? '–'} — {label} — {status}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                    <button onClick={() => getHighlights(meeting)}>
-                      {highlights[meeting.meeting_key] === 'loading' ? 'Generating...' : 'Get AI Highlights'}
-                    </button>
-                    {highlights[meeting.meeting_key] && highlights[meeting.meeting_key] !== 'loading' && (
-                      <p style={{ fontStyle: 'italic', marginTop: '0.5rem' }}>{highlights[meeting.meeting_key]}</p>
-                    )}
-                  </>
-                )}
-              </>
-            )}
+        {races.map(race => (
+          <li key={race.round} style={{ marginBottom: '1rem' }}>
+            {race.raceName} — {race.Circuit.Location.locality}, {race.Circuit.Location.country} — {race.date}
+            {/* Results/highlights button intentionally removed for this step —
+                coming back in the next message once viewResults is updated
+                for Jolpica's data shape. */}
           </li>
         ))}
       </ul>
