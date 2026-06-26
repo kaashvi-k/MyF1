@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { driverByNumber, DRIVERS_2026, TEAMS_2026 } from './drivers';
+import { DRIVERS_2026, TEAMS_2026 } from './drivers';
 import { auth, googleProvider, db, messaging } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -111,8 +111,6 @@ function App() {
     }
   }
 
-  // NEW: calendar now comes from our own backend (which sources from Jolpica,
-  // with Firestore caching as a fallback) instead of fetching OpenF1 directly.
   useEffect(() => {
     fetch('/api/calendar')
       .then(res => res.json())
@@ -121,92 +119,70 @@ function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  // --- Below: results/highlights logic, unchanged for now, not yet wired
-  // into the UI since it still expects OpenF1's data shape (meeting_key,
-  // driver_number). We're updating this in the next step. ---
-
-  function statusRank(r) {
-    if (r.position) return 0;
-    if (r.dnf) return 1;
-    if (r.dsq) return 2;
-    if (r.dns) return 3;
-    return 4;
-  }
-
-  async function viewResults(meetingKey) {
-    setLoadingResults(meetingKey);
+  // NEW: results now come from our own cached backend (Jolpica-sourced).
+  // Jolpica gives full driver/constructor names and plain-English status
+  // text directly, so no more number-lookups or DNF/DSQ/DNS categorizing.
+  async function viewResults(season, round) {
+    setLoadingResults(round);
     try {
-      const sessionsRes = await fetch(
-        `https://api.openf1.org/v1/sessions?meeting_key=${meetingKey}&session_name=Race`
-      );
-      const sessions = sessionsRes.ok ? await sessionsRes.json() : [];
+      const res = await fetch(`/api/results?season=${season}&round=${round}`);
+      const data = await res.json();
 
-      if (!Array.isArray(sessions) || sessions.length === 0) {
-        setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
+      if (!res.ok || !Array.isArray(data.results) || data.results.length === 0) {
+        setResults(prev => ({ ...prev, [round]: 'unavailable' }));
         return;
       }
 
-      const sessionKey = sessions[0].session_key;
-      const resultsRes = await fetch(
-        `https://api.openf1.org/v1/session_result?session_key=${sessionKey}`
-      );
-      const raceResults = resultsRes.ok ? await resultsRes.json() : [];
-
-      if (!Array.isArray(raceResults) || raceResults.length === 0) {
-        setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
-        return;
-      }
-
-      raceResults.sort((a, b) => {
-        const rankDiff = statusRank(a) - statusRank(b);
-        if (rankDiff !== 0) return rankDiff;
-        return (a.position ?? 0) - (b.position ?? 0);
-      });
-
-      setResults(prev => ({ ...prev, [meetingKey]: raceResults }));
+      setResults(prev => ({ ...prev, [round]: data.results }));
     } catch (err) {
       console.error('Failed to fetch results:', err);
-      setResults(prev => ({ ...prev, [meetingKey]: 'unavailable' }));
+      setResults(prev => ({ ...prev, [round]: 'unavailable' }));
     } finally {
       setLoadingResults(null);
     }
   }
 
-  async function getHighlights(meeting) {
-    const raceResults = results[meeting.meeting_key];
+  // "Finished" and "+1 Lap"/"+2 Laps" etc. mean classified with points;
+  // anything else (Retired, Accident, Disqualified...) is Jolpica's own
+  // plain-English explanation, so we just show it directly.
+  function formatStatus(r) {
+    if (r.status === 'Finished' || r.status.startsWith('+')) {
+      return `${r.points} pts`;
+    }
+    return r.status;
+  }
+
+  async function getHighlights(race) {
+    const raceResults = results[race.round];
     if (!Array.isArray(raceResults)) return;
 
-    setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'loading' }));
+    setHighlights(prev => ({ ...prev, [race.round]: 'loading' }));
 
-    const formattedResults = raceResults.map(r => {
-      const driver = driverByNumber[r.driver_number];
-      return {
-        position: r.position,
-        driverName: driver ? driver.name : `Driver #${r.driver_number}`,
-        team: driver ? driver.team : 'Unknown',
-        status: r.position ? `${r.points ?? 0} pts`
-          : r.dnf ? 'DNF' : r.dsq ? 'DSQ' : r.dns ? 'DNS' : 'NC',
-      };
-    });
+    const formattedResults = raceResults.map(r => ({
+      position: r.position,
+      driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
+      team: r.Constructor.name,
+      status: formatStatus(r),
+    }));
 
     try {
       const res = await fetch('/api/race-highlights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          raceName: meeting.meeting_name,
-          raceDate: meeting.date_start?.slice(0, 10),
+          raceName: race.raceName,
+          raceDate: race.date,
           results: formattedResults,
         }),
       });
       const data = await res.json();
       setHighlights(prev => ({
         ...prev,
-        [meeting.meeting_key]: data.summary || 'Failed to load highlights.',
+        [race.round]: data.summary || 'Failed to load highlights.',
       }));
     } catch (err) {
       console.error('Failed to get highlights:', err);
-      setHighlights(prev => ({ ...prev, [meeting.meeting_key]: 'Failed to load highlights.' }));
+      setHighlights(prev => ({ ...prev, [race.round]: 'Failed to load highlights.' }));
     }
   }
 
@@ -266,9 +242,37 @@ function App() {
         {races.map(race => (
           <li key={race.round} style={{ marginBottom: '1rem' }}>
             {race.raceName} — {race.Circuit.Location.locality}, {race.Circuit.Location.country} — {race.date}
-            {/* Results/highlights button intentionally removed for this step —
-                coming back in the next message once viewResults is updated
-                for Jolpica's data shape. */}
+
+            {isPast(race.date) && (
+              <>
+                {' '}
+                <button onClick={() => viewResults(race.season, race.round)}>
+                  {loadingResults === race.round ? 'Loading...' : 'View Results'}
+                </button>
+
+                {results[race.round] === 'unavailable' && (
+                  <p style={{ color: 'gray' }}>Results not available for this race.</p>
+                )}
+
+                {Array.isArray(results[race.round]) && (
+                  <>
+                    <ol>
+                      {results[race.round].map(r => (
+                        <li key={r.Driver.driverId}>
+                          P{r.position} — {r.Driver.givenName} {r.Driver.familyName} ({r.Constructor.name}) — {formatStatus(r)}
+                        </li>
+                      ))}
+                    </ol>
+                    <button onClick={() => getHighlights(race)}>
+                      {highlights[race.round] === 'loading' ? 'Generating...' : 'Get AI Highlights'}
+                    </button>
+                    {highlights[race.round] && highlights[race.round] !== 'loading' && (
+                      <p style={{ fontStyle: 'italic', marginTop: '0.5rem' }}>{highlights[race.round]}</p>
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </li>
         ))}
       </ul>
