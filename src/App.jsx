@@ -155,9 +155,7 @@ function App() {
       // Explicit labels for DSQ and DNS specifically
       if (/disqualified/i.test(r.status)) return 'DSQ';
       if (/did not start|withdrew/i.test(r.status)) return 'DNS';
-
-      // Everything else (Retired, Accident, Engine, Collision, Spun off, etc.)
-      // — Jolpica's specific reason, shown as-is, same as before
+      if(/retired/i.test(r.status)) return 'DNF';
       return r.status;
     }
 
