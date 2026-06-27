@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+:root {
+  --bg: #0D0D14;
+  --surface: #15151f;
+  --white: #F5F5F0;
+  --red: #E10600;
+  --amber: #FFB800;
+  --green: #39FF6A;
+  --muted: #75757f;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+}
+
+h1, h2, h3 { font-family: 'Press Start 2P', monospace; letter-spacing: 1px; }
+a { color: inherit; }
+
+.checkered-divider {
+  height: 10px;
+  background-image: repeating-linear-gradient(90deg, var(--bg) 0 10px, var(--white) 10px 20px);
+  margin: 1rem 0;
+}
+
+.pixel-card {
+  border: 2px solid var(--white);
+  background: var(--surface);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pixel-btn {
+  display: inline-block;
+  border: 2px solid var(--amber);
+  color: var(--amber);
+  background: transparent;
+  padding: 6px 14px;
+  font-family: 'VT323', monospace;
+  font-size: 1rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.pixel-btn:hover { background: var(--amber); color: var(--bg); }
+button { font-family: 'VT323', monospace; }
