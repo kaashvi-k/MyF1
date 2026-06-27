@@ -4,6 +4,7 @@ import { auth, googleProvider, db, messaging } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getToken, onMessage } from 'firebase/messaging';
+import TeamsPage from './pages/TeamsPage';
 import Nav from './components/Nav';
 import CalendarPage from './pages/CalendarPage';
 import DriversPage from './pages/DriversPage';
@@ -133,6 +134,16 @@ function App() {
           }
         />
         <Route path="/standings" element={<StandingsPage />} />
+        <Route
+          path="/teams"
+          element={
+            <TeamsPage
+              user={user}
+              followedTeams={followedTeams}
+              toggleFollowTeam={toggleFollowTeam}
+            />
+          }
+        />
       </Routes>
     </div>
   );
