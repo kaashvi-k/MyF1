@@ -3,9 +3,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { raceName, raceDate, results } = req.body;
-  if (!raceName || !results) {
-    return res.status(400).json({ error: 'Missing race data' });
+  const { raceName, raceDate, results, messages } = req.body;
+  if (!raceName || !results || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'Missing race data or messages' });
   }
 
   const resultsSummary = results
@@ -13,18 +13,26 @@ export default async function handler(req, res) {
     .map(r => `P${r.position ?? '–'}: ${r.driverName} (${r.team}) — ${r.status}`)
     .join('\n');
 
-    const prompt = `You are summarizing the highlights of a Formula 1 race for fans who missed it.
+  const systemInstruction = {
+    parts: [{
+      text: `You are discussing the highlights of a Formula 1 race with a fan who missed it.
 
-    Race: ${raceName} on ${raceDate}
-    Results:
-    ${resultsSummary}
+Race: ${raceName} on ${raceDate}
+Results:
+${resultsSummary}
 
-    You may describe drivers using general reputation, personality, or driving style (e.g. "known for aggressive overtakes," "a calm, consistent racer") since this kind of color doesn't go out of date but dont go overboard with it by giving an adjective for every driver.
+You may describe drivers using general reputation, personality, or driving style (e.g. "known for aggressive overtakes," "a calm, consistent racer") since this kind of color doesn't go out of date.
 
-    You must NOT state any specific factual or statistical claim about a driver's career or status unless it is explicitly given in the results above. This includes — but is not limited to — claims like: this is their first win ("maiden victory"), they are a rookie or in their debut season, their championship standing, their points total, how many races/wins/podiums they have had, or any other numbered or "first/youngest/only" type claim. Your knowledge of these specific facts may be outdated or wrong. If you are not certain a factual claim is supported by the results given above, do not make it.
+You must NOT state any specific factual or statistical claim about a driver's career or status unless it is explicitly given in the results above. This includes claims like: this is their first win ("maiden victory"), they are a rookie or in their debut season, their championship standing, their points total, race/win/podium counts, or any "first/youngest/only" type claim. Your knowledge of these specific facts may be outdated or wrong.
 
-    Write a short, engaging 3-4 sentence recap of THIS race only: who won, notable battles, surprises, or DNFs. Use driver personality/style for color where it fits, but do not invent or assume any specific career facts, firsts, or statistics.`;
+When asked for a summary, write a short, engaging 3-4 sentence recap of THIS race only. For follow-up questions, answer naturally and conversationally, staying grounded in the results above and these same rules.`
+    }]
+  };
 
+  const contents = messages.map(m => ({
+    role: m.role,
+    parts: [{ text: m.text }],
+  }));
 
   try {
     const response = await fetch(
@@ -35,7 +43,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
           'x-goog-api-key': process.env.GEMINI_API_KEY,
         },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify({ systemInstruction, contents }),
       }
     );
 
@@ -44,12 +52,12 @@ export default async function handler(req, res) {
 
     if (!text) {
       console.error('Unexpected Gemini response:', JSON.stringify(data));
-      return res.status(500).json({ error: 'No summary generated' });
+      return res.status(500).json({ error: 'No response generated' });
     }
 
-    return res.status(200).json({ summary: text });
+    return res.status(200).json({ reply: text });
   } catch (err) {
     console.error('Gemini request failed:', err);
-    return res.status(500).json({ error: 'Failed to generate summary' });
+    return res.status(500).json({ error: 'Failed to generate response' });
   }
 }
