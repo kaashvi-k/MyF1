@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 
-function CalendarPage() {
+function CalendarPage({ onOpenHighlights }) {
   const [races, setRaces] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState({});
   const [loadingResults, setLoadingResults] = useState(null);
-  const [highlights, setHighlights] = useState({});
 
   useEffect(() => {
     fetch('/api/calendar')
@@ -44,28 +43,16 @@ function CalendarPage() {
     return r.status;
   }
 
-  async function getHighlights(race) {
+  function handleGetHighlights(race) {
     const raceResults = results[race.round];
     if (!Array.isArray(raceResults)) return;
-    setHighlights(prev => ({ ...prev, [race.round]: 'loading' }));
     const formattedResults = raceResults.map(r => ({
       position: r.position,
       driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
       team: r.Constructor.name,
       status: formatStatus(r),
     }));
-    try {
-      const res = await fetch('/api/race-highlights', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raceName: race.raceName, raceDate: race.date, results: formattedResults }),
-      });
-      const data = await res.json();
-      setHighlights(prev => ({ ...prev, [race.round]: data.summary || 'Failed to load highlights.' }));
-    } catch (err) {
-      console.error('Failed to get highlights:', err);
-      setHighlights(prev => ({ ...prev, [race.round]: 'Failed to load highlights.' }));
-    }
+    onOpenHighlights(race, formattedResults);
   }
 
   const isPast = (dateStr) => new Date(dateStr) < new Date();
@@ -101,14 +88,9 @@ function CalendarPage() {
                       </li>
                     ))}
                   </ol>
-                  <button className="pixel-btn" onClick={() => getHighlights(race)}>
-                    {highlights[race.round] === 'loading' ? 'GENERATING...' : 'GET AI HIGHLIGHTS'}
+                  <button className="pixel-btn" onClick={() => handleGetHighlights(race)}>
+                    GET AI HIGHLIGHTS
                   </button>
-                  {highlights[race.round] && highlights[race.round] !== 'loading' && (
-                    <p style={{ fontStyle: 'italic', marginTop: '0.5rem', color: 'var(--green)' }}>
-                      {highlights[race.round]}
-                    </p>
-                  )}
                 </>
               )}
             </>

@@ -4,10 +4,11 @@ import { auth, googleProvider, db, messaging } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getToken, onMessage } from 'firebase/messaging';
-import TeamsPage from './pages/TeamsPage';
 import Nav from './components/Nav';
+import ChatWidget from './components/ChatWidget';
 import CalendarPage from './pages/CalendarPage';
 import DriversPage from './pages/DriversPage';
+import TeamsPage from './pages/TeamsPage';
 import StandingsPage from './pages/StandingsPage';
 
 const VAPID_KEY = 'BFnkYtDMzOQFz05eMPEVVbiTlMBOaiFkfMNKVY4CKPAqAyQHoCxT-IdPjN8fA2QwhnKV00H0CWJ81wHNVVj6xxQ';
@@ -16,6 +17,13 @@ function App() {
   const [user, setUser] = useState(null);
   const [followedDrivers, setFollowedDrivers] = useState([]);
   const [followedTeams, setFollowedTeams] = useState([]);
+
+  // Chat widget state lives here now, so it survives page navigation.
+  // Each entry in `chats` is self-contained: { race, formattedResults, messages, loading }
+  const [chats, setChats] = useState({});
+  const [chatInput, setChatInput] = useState({});
+  const [activeRound, setActiveRound] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
@@ -101,6 +109,58 @@ function App() {
     }
   }
 
+  // sessionOverride lets the very first message use a session we're about to
+  // create, without waiting on React's async state update to land first.
+  async function sendChatMessage(round, userText, sessionOverride) {
+    const session = sessionOverride || chats[round];
+    if (!session) return;
+
+    const newMessages = [...(session.messages || []), { role: 'user', text: userText }];
+    setChats(prev => ({ ...prev, [round]: { ...session, messages: newMessages, loading: true } }));
+
+    try {
+      const res = await fetch('/api/race-highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raceName: session.race.raceName,
+          raceDate: session.race.date,
+          results: session.formattedResults,
+          messages: newMessages,
+        }),
+      });
+      const data = await res.json();
+      const replyText = data.reply || 'Failed to get a response.';
+      setChats(prev => ({
+        ...prev,
+        [round]: { ...session, messages: [...newMessages, { role: 'model', text: replyText }], loading: false },
+      }));
+    } catch (err) {
+      console.error('Chat request failed:', err);
+      setChats(prev => ({
+        ...prev,
+        [round]: { ...session, messages: [...newMessages, { role: 'model', text: 'Failed to get a response.' }], loading: false },
+      }));
+    }
+  }
+
+  function openHighlights(race, formattedResults) {
+    setActiveRound(race.round);
+    setChatOpen(true);
+    if (!chats[race.round]) {
+      const initialSession = { race, formattedResults, messages: [], loading: true };
+      setChats(prev => ({ ...prev, [race.round]: initialSession }));
+      sendChatMessage(race.round, 'Summarize the highlights of this race.', initialSession);
+    }
+  }
+
+  function handleSendFollowUp() {
+    const text = chatInput[activeRound];
+    if (!text || !text.trim()) return;
+    setChatInput(prev => ({ ...prev, [activeRound]: '' }));
+    sendChatMessage(activeRound, text.trim());
+  }
+
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -120,31 +180,29 @@ function App() {
       <div className="checkered-divider"></div>
 
       <Routes>
-        <Route path="/" element={<CalendarPage />} />
+        <Route path="/" element={<CalendarPage onOpenHighlights={openHighlights} />} />
         <Route
           path="/drivers"
-          element={
-            <DriversPage
-              user={user}
-              followedDrivers={followedDrivers}
-              followedTeams={followedTeams}
-              toggleFollowDriver={toggleFollowDriver}
-              toggleFollowTeam={toggleFollowTeam}
-            />
-          }
+          element={<DriversPage user={user} followedDrivers={followedDrivers} toggleFollowDriver={toggleFollowDriver} />}
         />
-        <Route path="/standings" element={<StandingsPage />} />
         <Route
           path="/teams"
-          element={
-            <TeamsPage
-              user={user}
-              followedTeams={followedTeams}
-              toggleFollowTeam={toggleFollowTeam}
-            />
-          }
+          element={<TeamsPage user={user} followedTeams={followedTeams} toggleFollowTeam={toggleFollowTeam} />}
         />
+        <Route path="/standings" element={<StandingsPage />} />
       </Routes>
+
+      <ChatWidget
+        isOpen={chatOpen}
+        race={chats[activeRound]?.race || null}
+        messages={chats[activeRound]?.messages || []}
+        loading={chats[activeRound]?.loading || false}
+        inputValue={chatInput[activeRound] || ''}
+        onToggle={() => setChatOpen(prev => !prev)}
+        onClose={() => setChatOpen(false)}
+        onInputChange={(val) => setChatInput(prev => ({ ...prev, [activeRound]: val }))}
+        onSend={handleSendFollowUp}
+      />
     </div>
   );
 }
