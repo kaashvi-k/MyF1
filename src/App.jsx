@@ -111,6 +111,10 @@ function App() {
   // sessionOverride lets the very first message use a session we're about to
   // create, without waiting on React's async state update to land first.
   async function sendChatMessage(round, userText, sessionOverride) {
+    console.log('DEBUG: sendChatMessage called', round, userText);
+    const session = sessionOverride || chats[round];
+    console.log('DEBUG: session resolved to', session);
+    if (!session) return;
     const session = sessionOverride || chats[round];
     if (!session) return;
 
@@ -144,10 +148,13 @@ function App() {
   }
 
 function openHighlights(race, formattedResults) {
+  console.log('DEBUG: openHighlights called', race.round);
   setActiveRound(race.round);
   setChatOpen(true);
   const existing = chats[race.round];
+  console.log('DEBUG: existing session?', existing);
   if (!existing || (existing.messages.length === 0 && !existing.loading)) {
+    console.log('DEBUG: creating new session and calling sendChatMessage');
     const initialSession = { race, formattedResults, messages: [], loading: true };
     setChats(prev => ({ ...prev, [race.round]: initialSession }));
     sendChatMessage(race.round, 'Summarize the highlights of this race.', initialSession);

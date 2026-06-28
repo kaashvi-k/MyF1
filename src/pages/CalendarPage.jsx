@@ -44,17 +44,19 @@ function CalendarPage({ onOpenHighlights }) {
   }
 
   function handleGetHighlights(race) {
-    const raceResults = results[race.round];
-    if (!Array.isArray(raceResults)) return;
-    const formattedResults = raceResults.map(r => ({
-      position: r.position,
-      driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
-      team: r.Constructor.name,
-      status: formatStatus(r),
-    }));
-    onOpenHighlights(race, formattedResults);
-  }
-
+  console.log('DEBUG: handleGetHighlights called', race.round);
+  const raceResults = results[race.round];
+  console.log('DEBUG: raceResults is array?', Array.isArray(raceResults));
+  if (!Array.isArray(raceResults)) return;
+  const formattedResults = raceResults.map(r => ({
+    position: r.position,
+    driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
+    team: r.Constructor.name,
+    status: formatStatus(r),
+  }));
+  console.log('DEBUG: calling onOpenHighlights', typeof onOpenHighlights);
+  onOpenHighlights(race, formattedResults);
+}
   const isPast = (dateStr) => new Date(dateStr) < new Date();
 
   return (
