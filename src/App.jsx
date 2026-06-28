@@ -18,8 +18,7 @@ function App() {
   const [followedDrivers, setFollowedDrivers] = useState([]);
   const [followedTeams, setFollowedTeams] = useState([]);
 
-  // Chat widget state lives here now, so it survives page navigation.
-  // Each entry in `chats` is self-contained: { race, formattedResults, messages, loading }
+  
   const [chats, setChats] = useState({});
   const [chatInput, setChatInput] = useState({});
   const [activeRound, setActiveRound] = useState(null);
