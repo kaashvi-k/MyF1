@@ -49,11 +49,17 @@ function CalendarPage({ onOpenHighlights }) {
   console.log('DEBUG: raceResults is array?', Array.isArray(raceResults));
   if (!Array.isArray(raceResults)) return;
   const formattedResults = raceResults.map(r => ({
-    position: r.position,
-    driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
-    team: r.Constructor.name,
-    status: formatStatus(r),
-  }));
+      position: r.position,
+      driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
+      team: r.Constructor.name,
+      status: formatStatus(r),
+      grid: r.grid,
+      laps: r.laps,
+      fastestLap: r.FastestLap ? {
+        rank: r.FastestLap.rank,
+        time: r.FastestLap.Time?.time,
+      } : null,
+    }));
   console.log('DEBUG: calling onOpenHighlights', typeof onOpenHighlights);
   onOpenHighlights(race, formattedResults);
 }

@@ -9,9 +9,14 @@ export default async function handler(req, res) {
   }
 
   const resultsSummary = results
-    .slice(0, 10)
-    .map(r => `P${r.position ?? '–'}: ${r.driverName} (${r.team}) — ${r.status}`)
-    .join('\n');
+  .map(r => {
+    let line = `P${r.position ?? '–'}: ${r.driverName} (${r.team}) — ${r.status}, started P${r.grid}, completed ${r.laps} laps`;
+    if (r.fastestLap?.rank === '1') {
+      line += `, set the FASTEST LAP of the race (${r.fastestLap.time})`;
+    }
+    return line;
+  })
+  .join('\n');
 
   const systemInstruction = {
     parts: [{
