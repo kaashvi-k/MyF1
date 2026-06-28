@@ -143,15 +143,16 @@ function App() {
     }
   }
 
-  function openHighlights(race, formattedResults) {
-    setActiveRound(race.round);
-    setChatOpen(true);
-    if (!chats[race.round]) {
-      const initialSession = { race, formattedResults, messages: [], loading: true };
-      setChats(prev => ({ ...prev, [race.round]: initialSession }));
-      sendChatMessage(race.round, 'Summarize the highlights of this race.', initialSession);
-    }
+function openHighlights(race, formattedResults) {
+  setActiveRound(race.round);
+  setChatOpen(true);
+  const existing = chats[race.round];
+  if (!existing || (existing.messages.length === 0 && !existing.loading)) {
+    const initialSession = { race, formattedResults, messages: [], loading: true };
+    setChats(prev => ({ ...prev, [race.round]: initialSession }));
+    sendChatMessage(race.round, 'Summarize the highlights of this race.', initialSession);
   }
+}
 
   function handleSendFollowUp() {
     const text = chatInput[activeRound];
