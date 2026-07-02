@@ -23,6 +23,21 @@ export const DRIVERS_2026 = [
   { number: 77, name: 'Valtteri Bottas',   team: 'Cadillac' },
 ];
 
+export const TEAM_COLORS = {
+  'Red Bull Racing': '#3671C6',
+  'McLaren': '#FF8000',
+  'Ferrari': '#E8002D',
+  'Mercedes': '#27F4D2',
+  'Aston Martin': '#229971',
+  'Alpine': '#FF87BC',
+  'Racing Bulls': '#6692FF',
+  'Haas': '#B6BABD',
+  'Audi': '#282828',
+  'Williams': '#64C4FF',
+  'Cadillac': '#C92D4B',
+};
+
+
 export const driverByNumber = Object.fromEntries(
   DRIVERS_2026.map(d => [d.number, d])
 );
