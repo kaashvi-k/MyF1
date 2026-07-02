@@ -44,11 +44,12 @@ function CalendarPage({ onOpenHighlights }) {
   }
 
   function handleGetHighlights(race) {
-  console.log('DEBUG: handleGetHighlights called', race.round);
-  const raceResults = results[race.round];
-  console.log('DEBUG: raceResults is array?', Array.isArray(raceResults));
-  if (!Array.isArray(raceResults)) return;
-  const formattedResults = raceResults.map(r => ({
+    const raceResults = results[race.round];
+    if (!Array.isArray(raceResults)) {
+      alert('Load the race results first, then ask for AI highlights.');
+      return;
+    }
+    const formattedResults = raceResults.map(r => ({
       position: r.position,
       driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
       team: r.Constructor.name,
@@ -60,9 +61,9 @@ function CalendarPage({ onOpenHighlights }) {
         time: r.FastestLap.Time?.time,
       } : null,
     }));
-  console.log('DEBUG: calling onOpenHighlights', typeof onOpenHighlights);
-  onOpenHighlights(race, formattedResults);
-}
+    onOpenHighlights(race, formattedResults);
+  }
+
   const isPast = (dateStr) => new Date(dateStr) < new Date();
 
   return (
@@ -83,28 +84,10 @@ function CalendarPage({ onOpenHighlights }) {
                 {loadingResults === race.round ? 'LOADING...' : 'VIEW RESULTS'}
               </button>
 
-              {/* AI HIGHLIGHTS button now always visible for past races */}
               <button
                 className="pixel-btn"
                 style={{ marginLeft: '0.5rem' }}
-                onClick={() => {
-                  if (!Array.isArray(results[race.round])) {
-                    alert('Load the race results first, then ask for AI highlights.');
-                    return;
-                  }
-                  openHighlights(race, results[race.round].map(r => ({
-                    position: r.position,
-                    driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
-                    team: r.Constructor.name,
-                    status: formatStatus(r),
-                    grid: r.grid,
-                    laps: r.laps,
-                    fastestLap: r.FastestLap ? {
-                      rank: r.FastestLap.rank,
-                      time: r.FastestLap.Time?.time,
-                    } : null,
-                  })));
-                }}
+                onClick={() => handleGetHighlights(race)}
               >
                 GET AI HIGHLIGHTS
               </button>
