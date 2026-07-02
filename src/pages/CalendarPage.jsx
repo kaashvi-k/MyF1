@@ -83,23 +83,44 @@ function CalendarPage({ onOpenHighlights }) {
                 {loadingResults === race.round ? 'LOADING...' : 'VIEW RESULTS'}
               </button>
 
+              {/* AI HIGHLIGHTS button now always visible for past races */}
+              <button
+                className="pixel-btn"
+                style={{ marginLeft: '0.5rem' }}
+                onClick={() => {
+                  if (!Array.isArray(results[race.round])) {
+                    alert('Load the race results first, then ask for AI highlights.');
+                    return;
+                  }
+                  openHighlights(race, results[race.round].map(r => ({
+                    position: r.position,
+                    driverName: `${r.Driver.givenName} ${r.Driver.familyName}`,
+                    team: r.Constructor.name,
+                    status: formatStatus(r),
+                    grid: r.grid,
+                    laps: r.laps,
+                    fastestLap: r.FastestLap ? {
+                      rank: r.FastestLap.rank,
+                      time: r.FastestLap.Time?.time,
+                    } : null,
+                  })));
+                }}
+              >
+                GET AI HIGHLIGHTS
+              </button>
+
               {results[race.round] === 'unavailable' && (
                 <p style={{ color: 'var(--muted)' }}>Results not available for this race.</p>
               )}
 
               {Array.isArray(results[race.round]) && (
-                <>
-                  <ol>
-                    {results[race.round].map(r => (
-                      <li key={r.Driver.driverId}>
-                        P{r.position} — {r.Driver.givenName} {r.Driver.familyName} ({r.Constructor.name}) — {formatStatus(r)}
-                      </li>
-                    ))}
-                  </ol>
-                  <button className="pixel-btn" onClick={() => handleGetHighlights(race)}>
-                    GET AI HIGHLIGHTS
-                  </button>
-                </>
+                <ol>
+                  {results[race.round].map(r => (
+                    <li key={r.Driver.driverId}>
+                      P{r.position} — {r.Driver.givenName} {r.Driver.familyName} ({r.Constructor.name}) — {formatStatus(r)}
+                    </li>
+                  ))}
+                </ol>
               )}
             </>
           )}
