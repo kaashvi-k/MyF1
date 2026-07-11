@@ -2,11 +2,19 @@ export default async function handler(req, res) {
   const { driverId } = req.query;
   if (!driverId) return res.status(400).json({ error: 'Missing driverId' });
 
+  const CHAMPIONSHIPS = {
+    norris: 1, piastri: 0, max_verstappen: 4, hadjar: 0,
+    lawson: 0, lindblad: 0, leclerc: 0, hamilton: 7,
+    russell: 0, antonelli: 0, alonso: 2, stroll: 0,
+    gasly: 0, colapinto: 0, ocon: 0, bearman: 0,
+    hulkenberg: 0, bortoleto: 0, albon: 0, sainz: 0,
+    perez: 0, bottas: 0,
+  };
+
   try {
-    const [winsRes, racesRes, champsRes] = await Promise.all([
+    const [winsRes, racesRes] = await Promise.all([
       fetch(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results/1.json?limit=1`),
       fetch(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results.json?limit=1`),
-      fetch(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/driverStandings/1.json?limit=100`),
     ]);
 
     async function safeJson(r) {
@@ -15,16 +23,15 @@ export default async function handler(req, res) {
       try { return await r.json(); } catch { return null; }
     }
 
-    const [winsData, racesData, champsData] = await Promise.all([
+    const [winsData, racesData] = await Promise.all([
       safeJson(winsRes),
       safeJson(racesRes),
-      safeJson(champsRes),
     ]);
 
     const stats = {
       wins: parseInt(winsData?.MRData?.total) || 0,
       races: parseInt(racesData?.MRData?.total) || 0,
-      championships: champsData?.MRData?.StandingsTable?.StandingsLists?.length || 0,
+      championships: CHAMPIONSHIPS[driverId] ?? 0,
     };
 
     return res.status(200).json({ ...stats, source: 'live' });

@@ -31,14 +31,14 @@ function DriverCard({ driver, isFollowing, onToggleFollow, stats, statsLoading }
         <div style={{ color: teamColor, fontSize: '0.85rem', marginBottom: '6px' }}>{driver.team}</div>
 
         {statsLoading ? (
-          <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading stats...</div>
-        ) : stats ? (
-          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-            <span><span style={{ color: 'var(--amber)' }}>{stats.wins}</span> WINS</span>
-            <span><span style={{ color: 'var(--amber)' }}>{stats.races}</span> RACES</span>
-            <span><span style={{ color: 'var(--amber)' }}>{stats.championships}</span> 🏆</span>
-          </div>
-        ) : null}
+            <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Loading stats...</div>
+          ) : stats ? (
+            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+              <span><span style={{ color: 'var(--amber)' }}>{stats.wins}</span> WINS</span>
+              <span><span style={{ color: 'var(--amber)' }}>{stats.races}</span> RACES</span>
+              <span><span style={{ color: 'var(--amber)' }}>{stats.championships}</span> TITLES</span>
+            </div>
+          ) : null}
       </div>
 
       {/* Follow button */}

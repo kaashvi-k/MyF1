@@ -23,6 +23,31 @@ export const DRIVERS_2026 = [
   { number: 77, name: 'Valtteri Bottas',   team: 'Cadillac' },
 ];
 
+export const DRIVER_CHAMPIONSHIPS = {
+  'norris': 1,
+  'piastri': 0,
+  'max_verstappen': 4,
+  'hadjar': 0,
+  'lawson': 0,
+  'lindblad': 0,
+  'leclerc': 0,
+  'hamilton': 7,
+  'russell': 0,
+  'antonelli': 0,
+  'alonso': 2,
+  'stroll': 0,
+  'gasly': 0,
+  'colapinto': 0,
+  'ocon': 0,
+  'bearman': 0,
+  'hulkenberg': 0,
+  'bortoleto': 0,
+  'albon': 0,
+  'sainz': 0,
+  'perez': 0,
+  'bottas': 0,
+};
+
 export const TEAM_COLORS = {
   'Red Bull Racing': '#3671C6',
   'McLaren': '#FF8000',
