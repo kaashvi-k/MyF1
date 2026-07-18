@@ -51,9 +51,30 @@ function App() {
     return unsubscribe;
   }, []);
 
-  function handleSignIn() {
-    signInWithPopup(auth, googleProvider).catch(err => console.error('Sign-in failed:', err));
+  async function handleSignIn() {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+
+    const user = result.user;
+
+    await setDoc(
+      doc(db, "users", user.uid),
+      {
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+
+        emailReminders: true,
+        emailRecaps: true,
+      },
+      { merge: true }
+    );
+
+    console.log("User profile updated.");
+  } catch (err) {
+    console.error("Sign-in failed:", err);
   }
+}
 
   function handleSignOut() {
     signOut(auth).catch(err => console.error('Sign-out failed:', err));
