@@ -17,13 +17,13 @@ const db = getFirestore();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export default async function handler(req, res) {
-  //const authHeader = req.headers.authorization;
+  const authHeader = req.headers.authorization;
 
-  //if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //return res.status(401).json({
-      //error: "Unauthorized",
-    //});
-  //}
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({
+      error: "Unauthorized",
+    });
+  }
 
   try {
     // -----------------------------
@@ -332,7 +332,7 @@ font-size:16px;
 "
 >
 See the complete race results, standings and analytics on
-<strong>ApexF1</strong>.
+<strong>MyF1</strong>.
 </p>
 
 <p
@@ -355,7 +355,7 @@ font-weight:bold;
 "
 >
 
-Open ApexF1
+Open MyF1
 
 </a>
 
@@ -369,7 +369,7 @@ color:#777;
 text-align:center;
 "
 >
-You're receiving this email because you've enabled race recap emails in ApexF1.
+You're receiving this email because you've enabled race recap emails in MyF1.
 </p>
 
 </div>
@@ -380,7 +380,7 @@ You're receiving this email because you've enabled race recap emails in ApexF1.
 `;
 
       await resend.emails.send({
-        from: "ApexF1 <onboarding@resend.dev>",
+        from: "MyF1 <onboarding@resend.dev>",
         to: user.email,
         subject: `🏁 ${recentRace.raceName} Results`,
         html,
