@@ -1,139 +1,88 @@
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { Resend } from "resend";
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { Resend } from 'resend';
 
 if (!getApps().length) {
   initializeApp({
     credential: cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     }),
   });
 }
 
 const db = getFirestore();
-
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export default async function handler(req, res) {
   const authHeader = req.headers.authorization;
-
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({
-      error: "Unauthorized",
-    });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    // -----------------------------
     // Fetch 2026 calendar
-    // -----------------------------
-    const calRes = await fetch(
-      "https://api.jolpi.ca/ergast/f1/2026.json"
-    );
-
+    const calRes = await fetch('https://api.jolpi.ca/ergast/f1/2026.json');
     const calData = await calRes.json();
-
     const races = calData.MRData.RaceTable.Races;
-
     const now = new Date();
 
     // Most recently completed race
     const recentRace = races
-      .filter((race) => new Date(race.date) < now)
+      .filter(r => new Date(r.date) < now)
       .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 
     if (!recentRace) {
-      return res.status(200).json({
-        message: "No completed race yet.",
-      });
+      return res.status(200).json({ message: 'No completed race yet.' });
     }
 
-    // -----------------------------
     // Prevent duplicate emails
-    // -----------------------------
     const raceId = `${recentRace.season}-${recentRace.round}`;
-
-    const emailRef = db.collection("notifications").doc(`email-${raceId}`);
-
+    const emailRef = db.collection('notifications').doc(`email-${raceId}`);
     const emailSnap = await emailRef.get();
 
     if (emailSnap.exists && emailSnap.data()?.emailsSent) {
-      return res.status(200).json({
-        message: "Emails already sent.",
-      });
+      return res.status(200).json({ message: 'Emails already sent for this race.' });
     }
 
-    // -----------------------------
-    // Download race results
-    // -----------------------------
+    // Fetch race results
     const resultsRes = await fetch(
       `https://api.jolpi.ca/ergast/f1/${recentRace.season}/${recentRace.round}/results.json`
     );
-
     const resultsData = await resultsRes.json();
-
-    const raceResults =
-      resultsData.MRData.RaceTable.Races[0]?.Results || [];
+    const raceResults = resultsData.MRData.RaceTable.Races[0]?.Results || [];
 
     if (raceResults.length === 0) {
-      return res.status(200).json({
-        message: "Race results unavailable.",
-      });
+      return res.status(200).json({ message: 'Race results unavailable yet.' });
     }
 
-    // -----------------------------
     // Build lookup maps
-    // -----------------------------
     const driverResults = {};
     const teamResults = {};
 
-    raceResults.forEach((result) => {
-      const driverNumber = parseInt(
-        result.Driver.permanentNumber
-      );
+    raceResults.forEach(r => {
+      const num = parseInt(r.Driver.permanentNumber);
+      const name = `${r.Driver.givenName} ${r.Driver.familyName}`;
+      const team = r.Constructor.name;
+      const position = r.position;
+      const status = r.status;
 
-      const driverName =
-        `${result.Driver.givenName} ${result.Driver.familyName}`;
+      driverResults[num] = { name, team, position, status };
 
-      const team = result.Constructor.name;
-
-      const position = result.position;
-
-      driverResults[driverNumber] = {
-        name: driverName,
-        team,
-        position,
-      };
-
-      if (!teamResults[team]) {
-        teamResults[team] = [];
-      }
-
-      teamResults[team].push({
-        name: driverName,
-        position,
-      });
+      if (!teamResults[team]) teamResults[team] = [];
+      teamResults[team].push({ name, position, status });
     });
 
     const winner = raceResults[0];
+    const winnerName = `${winner.Driver.givenName} ${winner.Driver.familyName}`;
+    const winnerTeam = winner.Constructor.name;
 
-    const winnerName =
-      `${winner.Driver.givenName} ${winner.Driver.familyName}`;
-
-    // -----------------------------
-    // Load users
-    // -----------------------------
-    const usersSnap = await db.collection("users").get();
-
+    // Load all users from Firestore
+    const usersSnap = await db.collection('users').get();
     let emailsSent = 0;
-    // ----------------------------------
-    // Send one consolidated email per user
-    // ----------------------------------
 
     for (const userDoc of usersSnap.docs) {
-
       const user = userDoc.data();
 
       if (!user.email) continue;
@@ -141,261 +90,139 @@ export default async function handler(req, res) {
       const followedDrivers = user.followedDrivers || [];
       const followedTeams = user.followedTeams || [];
 
-      if (
-        followedDrivers.length === 0 &&
-        followedTeams.length === 0
-      ) {
-        continue;
-      }
+      if (followedDrivers.length === 0 && followedTeams.length === 0) continue;
 
-      let driverSection = "";
+      // Build driver section
+      let driverRows = '';
+      followedDrivers.forEach(num => {
+        const result = driverResults[num];
+        if (!result) return;
+        const pos = result.position ? `P${result.position}` : result.status;
+        driverRows += `
+          <tr>
+            <td style="padding:10px 8px;border-bottom:1px solid #1a1a2e;">
+              <span style="color:#F5F5F0;">${result.name}</span>
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #1a1a2e;color:#75757f;">
+              ${result.team}
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #1a1a2e;text-align:right;">
+              <span style="color:#39FF6A;font-weight:bold;">${pos}</span>
+            </td>
+          </tr>`;
+      });
 
-      if (followedDrivers.length > 0) {
-
-        driverSection += `
-          <h2 style="color:#E10600;margin-bottom:10px;">
-            ⭐ Followed Drivers
-          </h2>
-
-          <table
-            style="
-              width:100%;
-              border-collapse:collapse;
-              margin-bottom:30px;
-            "
-          >
+      // Build team section
+      let teamRows = '';
+      followedTeams.forEach(team => {
+        const drivers = teamResults[team];
+        if (!drivers) return;
+        const sorted = [...drivers].sort((a, b) => parseInt(a.position) - parseInt(b.position));
+        sorted.forEach((d, i) => {
+          const pos = d.position ? `P${d.position}` : d.status;
+          teamRows += `
             <tr>
-              <th align="left">Driver</th>
-              <th align="left">Team</th>
-              <th align="center">Finish</th>
-            </tr>
-        `;
-
-        followedDrivers.forEach(driverNum => {
-
-          const result = driverResults[driverNum];
-
-          if (!result) return;
-
-          driverSection += `
-            <tr>
-              <td style="padding:8px 0;">
-                ${result.name}
+              <td style="padding:10px 8px;border-bottom:1px solid #1a1a2e;">
+                <span style="color:#F5F5F0;">${d.name}</span>
               </td>
-
-              <td>
-                ${result.team}
+              <td style="padding:10px 8px;border-bottom:1px solid #1a1a2e;color:#75757f;">
+                ${i === 0 ? team : ''}
               </td>
-
-              <td align="center">
-                P${result.position}
+              <td style="padding:10px 8px;border-bottom:1px solid #1a1a2e;text-align:right;">
+                <span style="color:#39FF6A;font-weight:bold;">${pos}</span>
               </td>
-            </tr>
-          `;
-
+            </tr>`;
         });
+      });
 
-        driverSection += `
-          </table>
-        `;
-
-      }
-
-      let teamSection = "";
-
-      if (followedTeams.length > 0) {
-
-        teamSection += `
-          <h2 style="color:#E10600;margin-bottom:10px;">
-            🏎️ Followed Teams
-          </h2>
-        `;
-
-        followedTeams.forEach(team => {
-
-          const drivers = teamResults[team];
-
-          if (!drivers) return;
-
-          teamSection += `
-            <div
-              style="
-                border:1px solid #ddd;
-                padding:15px;
-                margin-bottom:20px;
-                border-radius:10px;
-              "
-            >
-
-            <h3 style="margin-top:0;">
-              ${team}
-            </h3>
-
-            <ul>
-          `;
-
-          drivers
-            .sort((a, b) => Number(a.position) - Number(b.position))
-            .forEach(driver => {
-
-              teamSection += `
-                <li>
-                  ${driver.name} — P${driver.position}
-                </li>
-              `;
-
-            });
-
-          teamSection += `
-              </ul>
-
-            </div>
-          `;
-
-        });
-
-      }
+      if (!driverRows && !teamRows) continue;
 
       const html = `
 <!DOCTYPE html>
-
 <html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0D0D14;font-family:monospace;">
+<div style="max-width:560px;margin:0 auto;padding:32px 24px;">
 
-<head>
+  <!-- Header -->
+  <div style="margin-bottom:24px;">
+    <h1 style="margin:0 0 4px;color:#E10600;font-size:20px;letter-spacing:2px;">MYF1</h1>
+    <div style="height:6px;background:repeating-linear-gradient(90deg,#0D0D14 0 10px,#F5F5F0 10px 20px);margin-bottom:16px;"></div>
+    <h2 style="margin:0 0 4px;color:#F5F5F0;font-size:16px;">${recentRace.raceName}</h2>
+    <p style="margin:0;color:#75757f;font-size:13px;">
+      ${recentRace.Circuit.Location.locality}, ${recentRace.Circuit.Location.country} &mdash; ${recentRace.date}
+    </p>
+  </div>
 
-<meta charset="UTF-8">
+  <!-- Winner banner -->
+  <div style="background:#15151f;border-left:3px solid #FFB800;padding:14px 16px;margin-bottom:24px;">
+    <p style="margin:0;color:#FFB800;font-size:11px;letter-spacing:1px;margin-bottom:4px;">RACE WINNER</p>
+    <p style="margin:0;color:#F5F5F0;font-size:15px;">
+      <strong>${winnerName}</strong>
+      <span style="color:#75757f;font-size:13px;"> &mdash; ${winnerTeam}</span>
+    </p>
+  </div>
 
-</head>
+  ${driverRows ? `
+  <!-- Followed Drivers -->
+  <p style="margin:0 0 8px;color:#FFB800;font-size:11px;letter-spacing:1px;">YOUR DRIVERS</p>
+  <table style="width:100%;border-collapse:collapse;background:#15151f;margin-bottom:24px;">
+    <thead>
+      <tr style="color:#75757f;font-size:11px;letter-spacing:1px;">
+        <th style="padding:8px;text-align:left;font-weight:normal;">DRIVER</th>
+        <th style="padding:8px;text-align:left;font-weight:normal;">TEAM</th>
+        <th style="padding:8px;text-align:right;font-weight:normal;">RESULT</th>
+      </tr>
+    </thead>
+    <tbody>${driverRows}</tbody>
+  </table>` : ''}
 
-<body
-style="
-font-family:Arial,sans-serif;
-background:#f4f4f4;
-padding:30px;
-"
->
+  ${teamRows ? `
+  <!-- Followed Teams -->
+  <p style="margin:0 0 8px;color:#FFB800;font-size:11px;letter-spacing:1px;">YOUR TEAMS</p>
+  <table style="width:100%;border-collapse:collapse;background:#15151f;margin-bottom:24px;">
+    <thead>
+      <tr style="color:#75757f;font-size:11px;letter-spacing:1px;">
+        <th style="padding:8px;text-align:left;font-weight:normal;">DRIVER</th>
+        <th style="padding:8px;text-align:left;font-weight:normal;">TEAM</th>
+        <th style="padding:8px;text-align:right;font-weight:normal;">RESULT</th>
+      </tr>
+    </thead>
+    <tbody>${teamRows}</tbody>
+  </table>` : ''}
 
-<div
-style="
-max-width:700px;
-margin:auto;
-background:white;
-padding:35px;
-border-radius:12px;
-"
->
+  <!-- CTA -->
+  <div style="height:6px;background:repeating-linear-gradient(90deg,#0D0D14 0 10px,#F5F5F0 10px 20px);margin-bottom:20px;"></div>
+  <a href="https://my-f1-mu.vercel.app"
+     style="display:inline-block;background:#E10600;color:#fff;padding:12px 24px;text-decoration:none;font-size:13px;letter-spacing:1px;">
+    VIEW FULL RESULTS →
+  </a>
 
-<h1
-style="
-color:#E10600;
-text-align:center;
-"
->
-🏁 ${recentRace.raceName}
-</h1>
-
-<p>
-
-Hi <strong>${user.displayName || "F1 Fan"}</strong>,
-
-</p>
-
-<p>
-
-Here's your personalized race recap from
-<strong>${recentRace.raceName}</strong>.
-
-</p>
-
-<p>
-
-🥇 Winner:
-<strong>${winnerName}</strong>
-
-</p>
-
-<hr>
-
-${driverSection}
-
-${teamSection}
-<hr
-style="
-margin-top:40px;
-margin-bottom:25px;
-"
->
-
-<p
-style="
-font-size:16px;
-"
->
-See the complete race results, standings and analytics on
-<strong>MyF1</strong>.
-</p>
-
-<p
-style="
-text-align:center;
-margin-top:30px;
-"
->
-
-<a
-href="https://my-f1-mu.vercel.app"
-style="
-background:#E10600;
-color:white;
-padding:14px 28px;
-border-radius:8px;
-text-decoration:none;
-display:inline-block;
-font-weight:bold;
-"
->
-
-Open MyF1
-
-</a>
-
-</p>
-
-<p
-style="
-margin-top:40px;
-font-size:12px;
-color:#777;
-text-align:center;
-"
->
-You're receiving this email because you've enabled race recap emails in MyF1.
-</p>
+  <!-- Footer -->
+  <p style="margin-top:24px;color:#75757f;font-size:11px;">
+    You're receiving this because you follow drivers or teams on MYF1.
+  </p>
 
 </div>
-
 </body>
-
-</html>
-`;
+</html>`;
 
       await resend.emails.send({
-        from: "MyF1 <onboarding@resend.dev>",
-        to: user.email,
-        subject: `🏁 ${recentRace.raceName} Results`,
+        from: 'MYF1 <onboarding@resend.dev>',
+        to: [user.email],
+        subject: `🏁 ${recentRace.raceName} — Your Race Recap`,
         html,
       });
 
       emailsSent++;
     }
 
-    // -----------------------------
-    // Mark this race as emailed
-    // -----------------------------
+    // Mark race as emailed
     await emailRef.set({
       emailsSent: true,
       race: recentRace.raceName,
       sentAt: new Date().toISOString(),
+      recipients: emailsSent,
     });
 
     return res.status(200).json({
@@ -406,13 +233,7 @@ You're receiving this email because you've enabled race recap emails in MyF1.
     });
 
   } catch (err) {
-
-    console.error(err);
-
-    return res.status(500).json({
-      error: err.message,
-    });
-
+    console.error('Email job failed:', err);
+    return res.status(500).json({ error: err.message });
   }
-
 }

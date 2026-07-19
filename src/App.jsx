@@ -24,9 +24,17 @@ function App() {
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => setUser(currentUser));
-    return unsubscribe;
-  }, []);
+      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        setUser(currentUser);
+        if (currentUser) {
+          await setDoc(doc(db, 'users', currentUser.uid), {
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+          }, { merge: true });
+        }
+      });
+      return unsubscribe;
+    }, []);
 
   useEffect(() => {
     if (!user) {
