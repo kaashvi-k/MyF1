@@ -141,12 +141,8 @@ npm run dev
 ## Limitations & Future Work
 
 - **No TypeScript** — migrating to TypeScript would improve type safety across the API response handling, which currently relies on optional chaining for unknown shapes
-- **No automated tests** — unit tests for `formatStatus`, result sorting logic, and date comparison helpers would add meaningful coverage
-- **No CI pipeline** — GitHub Actions build + test check on every push would catch the class of deployment failures encountered during development
 - **Driver stats not cached** — career statistics are fetched from Jolpica on every Drivers page load; Firestore caching would reduce load on the volunteer-run API
 - **Single cron job limit** — Vercel Hobby plan allows one scheduled job, so race reminders and result notifications are combined into one daily function; a Pro plan would allow separate, more precisely timed triggers
-- **Email notifications not yet implemented** — planned as a Resend-powered post-race summary email consolidating all followed driver/team results
-
 ---
 
 ## Data Sources
