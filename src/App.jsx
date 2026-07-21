@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { auth, googleProvider, db, messaging } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -234,6 +235,7 @@ function App() {
         onInputChange={(val) => setChatInput(prev => ({ ...prev, [activeRound]: val }))}
         onSend={handleSendFollowUp}
       />
+      <Analytics />
     </div>
   );
 }
