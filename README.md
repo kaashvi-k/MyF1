@@ -1,5 +1,8 @@
 # MyF1
 
+<img width="2429" height="1286" alt="image" src="https://github.com/user-attachments/assets/4dc33c5e-433c-43dd-8f3b-cd5c4026560f" />
+
+
 A full-stack Formula 1 statistics and tracking platform built with React, Firebase, and Vercel. Live at [my-f1-mu.vercel.app](https://my-f1-mu.vercel.app)
 
 ---
@@ -66,6 +69,17 @@ All external API traffic is proxied through the serverless layer — the browser
 
 ---
 
+## Security
+
+- Firebase Authentication (Google OAuth)
+- Firestore row-level security rules
+- Backend-for-Frontend (BFF) architecture (API keys never exposed)
+- Environment variable isolation
+- Cron endpoint authorization using bearer token
+- HTTPS via Vercel
+
+---
+
 ## Key Engineering Decisions
 
 **Backend-for-frontend caching layer**
@@ -77,7 +91,7 @@ User follow preferences use `arrayUnion` and `arrayRemove` rather than read-modi
 **Stateless multi-turn AI context**
 Vercel serverless functions have no memory between invocations. The full conversation history is sent with every request from the client, and the backend reconstructs context from scratch each time before calling Gemini. This keeps the backend stateless and horizontally scalable while preserving the appearance of a continuous conversation in the UI.
 
-**Hallucination grounding for sports commentary**
+**Retrieval-grounded AI responses grounding for sports commentary**
 LLMs have training cutoffs and frequently confuse current-season standings with historical data. The Gemini system instruction explicitly prohibits claiming any "first win," "rookie," championship standing, or career count unless that data appears in the race results payload sent with the request. This prevents the model from confidently stating outdated facts (e.g., calling a driver the reigning champion when they are not).
 
 **Foreground and background push notification handling**
@@ -143,6 +157,11 @@ npm run dev
 - **No TypeScript** — migrating to TypeScript would improve type safety across the API response handling, which currently relies on optional chaining for unknown shapes
 - **Driver stats not cached** — career statistics are fetched from Jolpica on every Drivers page load; Firestore caching would reduce load on the volunteer-run API
 - **Single cron job limit** — Vercel Hobby plan allows one scheduled job, so race reminders and result notifications are combined into one daily function; a Pro plan would allow separate, more precisely timed triggers
+- Rate limiting for AI endpoint
+- Content Security Policy
+- Redis cache
+- Offline mode
+- PWA support
 ---
 
 ## Data Sources
